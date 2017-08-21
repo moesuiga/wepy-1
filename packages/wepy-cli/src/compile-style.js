@@ -89,7 +89,9 @@ export default {
                             comsrc = comsrc.replace(ext, '.wxss').replace(`${path.sep}${dist}${path.sep}`, `${path.sep}${src}${path.sep}`);
                             isNPM = true;
                         }
-                        let relative = path.relative(opath.dir + path.sep + opath.base, comsrc);
+                        var currentFileSrc = opath.dir + path.sep + opath.base;
+                        currentFileSrc = currentFileSrc.replace('node_modules','src\\npm').replace('\\dist\\','\\src\\');
+                        let relative = path.relative(currentFileSrc, comsrc);
                         let code = util.readFile(comsrc);
                         if (isNPM || /<style/.test(code)) {
                             if (/\.wpy$/.test(relative)) { // wpy 第三方组件
