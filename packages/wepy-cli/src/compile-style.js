@@ -12,7 +12,7 @@ const LANG_MAP = {
 };
 
 export default {
-    compile (styles, requires, opath, moduleId) {
+    compile(styles, requires, opath, moduleId) {
         let config = util.getConfig();
         let src = cache.getSrc();
         let dist = cache.getDist();
@@ -44,7 +44,7 @@ export default {
             if (lang === 'sass' || lang === 'scss') {
                 let indentedSyntax = false;
                 options = Object.assign({}, config.compilers.sass || {});
-                
+
                 if (lang === 'sass') { // sass is using indented syntax
                     indentedSyntax = true;
                 }
@@ -74,6 +74,7 @@ export default {
 
             allPromises.push(p);
         });
+        const pathSep = path.sep
         Promise.all(allPromises).then((rets) => {
             let allContent = rets.join('');
             if (requires && requires.length) {
@@ -90,7 +91,7 @@ export default {
                             isNPM = true;
                         }
                         var currentFileSrc = opath.dir + path.sep + opath.base;
-                        currentFileSrc = currentFileSrc.replace('node_modules','src\\npm').replace('\\dist\\','\\src\\');
+                        currentFileSrc = currentFileSrc.replace('node_modules', `src${pathSep}npm`).replace(`${pathSep}dist${pathSep}`, `${pathSep}src${pathSep}`);
                         let relative = path.relative(currentFileSrc, comsrc);
                         let code = util.readFile(comsrc);
                         if (isNPM || /<style/.test(code)) {
@@ -109,10 +110,10 @@ export default {
                 type: 'css',
                 code: allContent,
                 file: target,
-                output (p) {
+                output(p) {
                     util.output(p.action, p.file);
                 },
-                done (rst) {
+                done(rst) {
                     util.output('写入', rst.file);
                     util.writeFile(target, rst.code);
                 }

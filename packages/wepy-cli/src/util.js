@@ -1,9 +1,8 @@
-
 import colors from 'colors/safe';
 import fs from 'fs';
 import mkdirp from 'mkdirp';
 import path from 'path';
-import {exec} from 'child_process';
+import { exec } from 'child_process';
 import hash from 'hash-sum';
 import cache from './cache';
 
@@ -47,7 +46,7 @@ const utils = {
 
             const iterateeFunc = (previousPromise, currentPromise) => {
                 return previousPromise
-                    .then(function (result) {
+                    .then(function(result) {
                         if (count++ !== 0) results = results.concat(result);
                         return currentPromise(result, results, count);
                     })
@@ -59,17 +58,16 @@ const utils = {
             promises = promises.concat(() => Promise.resolve());
 
             promises.reduce(iterateeFunc, Promise.resolve(false))
-            .then(function (res) {
-                resolve(results);
-            });
+                .then(function(res) {
+                    resolve(results);
+                });
 
         });
     },
     exec(cmd, quite) {
         return new Promise((resolve, reject) => {
             let fcmd = exec(cmd, (err, stdout, stderr) => {
-                if (err) { reject(err); }
-                else { resolve(stdout, stderr); }
+                if (err) { reject(err); } else { resolve(stdout, stderr); }
             });
             fcmd.stdout.on('data', (chunk) => {
                 !quite && process.stdout.write(chunk);
@@ -80,10 +78,10 @@ const utils = {
         });
     },
     timeoutExec(sec, cmd, quite) {
-        let timeout = new Promise(function(resolve, reject) { 
+        let timeout = new Promise(function(resolve, reject) {
             setTimeout(() => {
                 reject('timeout');
-            }, sec * 1000); 
+            }, sec * 1000);
         });
         let task = this.exec(cmd, quite);
         return Promise.race([timeout, task]);
@@ -109,7 +107,7 @@ const utils = {
     getComPath(elem) {
         return elem.getAttribute('path') || this.getComId(elem);
     },
-    findComponentInTemplate (com, template) {
+    findComponentInTemplate(com, template) {
         if (typeof(com) !== 'string') {
             com = this.getComId(com);
         }
@@ -121,7 +119,8 @@ const utils = {
         let wpyExt = cache.getExt();
 
         let src = '';
-        if (com.indexOf(path.sep) !== -1) {
+        const isPrivatePackage = com.indexOf('@') === 0
+        if (com.indexOf(path.sep) !== -1 && !isPrivatePackage) {
             if (this.isFile(com + wpyExt)) {
                 src = com + wpyExt;
             }
@@ -152,41 +151,41 @@ const utils = {
     currentDir: process.cwd(),
     cliDir: __dirname,
 
-    isFunction (fn) {
+    isFunction(fn) {
         return typeof(fn) === 'function';
     },
-    isString (obj) {
+    isString(obj) {
         return toString.call(obj) === '[object String]';
     },
-    isObject (obj) {
+    isObject(obj) {
         return toString.call(obj) === '[object Object]';
     },
-    isNumber (obj) {
+    isNumber(obj) {
         return toString.call(obj) === '[object Number]';
     },
-    isBoolean (obj) {
+    isBoolean(obj) {
         return toString.call(obj) === '[object Boolean]';
     },
-    isArray (obj) {
+    isArray(obj) {
         return Array.isArray(obj);
     },
-    isFile (p) {
+    isFile(p) {
         p = (typeof(p) === 'object') ? path.join(p.dir, p.base) : p;
         if (!fs.existsSync(p)) {
             return false;
         }
         return fs.statSync(p).isFile();
     },
-    isDir (p) {
+    isDir(p) {
         if (!fs.existsSync(p)) {
             return false;
         }
         return fs.statSync(p).isDirectory();
     },
     /**
-    * Hyphenate a camelCase string.
-    */
-    hyphenate (str) {
+     * Hyphenate a camelCase string.
+     */
+    hyphenate(str) {
         return str
             .replace(/([^-])([A-Z])/g, '$1-$2')
             .replace(/([^-])([A-Z])/g, '$1-$2')
@@ -195,13 +194,13 @@ const utils = {
     /**
      * Camelize a hyphen-delimited string.
      */
-    camelize (str) {
+    camelize(str) {
         return str.replace(/-(\w)/g, (_, c) => c ? c.toUpperCase() : '');
     },
     /**
      * xml dom 对 TEXT_NODE 和 ATTRIBUTE_NODE 进行转义。
      */
-    decode (content) {
+    decode(content) {
         let pmap = ['<', '&', '"'];
         let amap = ['&lt;', '&amp;', '&quot;'];
         let reg = new RegExp(`(${amap[0]}|${amap[1]}|${amap[2]})`, 'ig');
@@ -209,7 +208,7 @@ const utils = {
             return pmap[amap.indexOf(m)];
         });
     },
-    encode (content, start, end) {
+    encode(content, start, end) {
         start = start || 0;
         end = end || content.length;
 
@@ -217,7 +216,8 @@ const utils = {
         let pmap = ['<', '&', '"'];
         let amap = ['&lt;', '&amp;', '&quot;'];
 
-        let i = 0, c;
+        let i = 0,
+            c;
         for (let i = 0, len = content.length; i < len; i++) {
             if (i < start || i > end) {
                 buffer.push(content[i]);
@@ -271,7 +271,7 @@ const utils = {
 
             // 地图
             'map',
-            
+
             // 画布
             'canvas',
 
@@ -290,9 +290,7 @@ const utils = {
         return content.replace(/<([\w-]+)\s*[\s\S]*?(\/|<\/[\w-]+)>/ig, (tag, tagName) => {
             tagName = tagName.toLowerCase();
             return tag.replace(/\s+:([\w-_]*)([\.\w]*)\s*=/ig, (attr, name, type) => { // replace :param.sync => v-bind:param.sync
-                if (type === '.once' || type === '.sync') {
-                }
-                else
+                if (type === '.once' || type === '.sync') {} else
                     type = '.once';
                 return ` v-bind:${name}${type}=`;
             }).replace(/\s+\@([\w-_]*)([\.\w]*)\s*=/ig, (attr, name, type) => { // replace @change => v-on:change
@@ -305,13 +303,14 @@ const utils = {
      * get indent of a mutiple lines string
      * return {length: 4, char: ' '}
      */
-    getIndent (str) {
+    getIndent(str) {
         let arr = str.split('\n');
         while (arr.length && !/\w/.test(arr[0])) { // if the first line is empty line, then get rid of it
             arr.shift();
         }
-        let indent = {firstLineIndent: 0, indent: 0, char: ''};
-        let s = arr[0], i = 0;
+        let indent = { firstLineIndent: 0, indent: 0, char: '' };
+        let s = arr[0],
+            i = 0;
         if (s.charCodeAt(0) === 32 || s.charCodeAt(0) === 9) { // 32 is space, 9 is tab
             indent.char = s[0];
         }
@@ -340,28 +339,29 @@ const utils = {
      * @param  {String} char space or tab, indent charactor
      * @return {String}      fixed indent string
      */
-    fixIndent (str, num, char) {
+    fixIndent(str, num, char) {
         if (char === undefined) {
             let indent = getIndent(str);
             char = indent.char;
         }
         let arr = str.split('\n');
         if (num > 0) { // added char to each line
-            arr.forEach(function (v, i) {
+            arr.forEach(function(v, i) {
                 let p = 0;
-                while(p++ < num) {
+                while (p++ < num) {
                     arr[i] = char + arr[i]
                 }
             });
         } else { // remove char for each line
-            arr.forEach(function (v, i) {
+            arr.forEach(function(v, i) {
                 arr[i] = arr[i].substr(-1 * num);
             });
         }
         return arr.join('\n');
     },
-    unique (arr) {
-        let tmp = {}, out = [];
+    unique(arr) {
+        let tmp = {},
+            out = [];
         arr.forEach((v) => {
             if (!tmp[v]) {
                 tmp[v] = 1;
@@ -370,7 +370,7 @@ const utils = {
         });
         return out;
     },
-    unlink (p) {
+    unlink(p) {
         let rst = '';
         p = (typeof(p) === 'object') ? path.join(p.dir, p.base) : p;
         try {
@@ -380,7 +380,7 @@ const utils = {
         }
         return rst;
     },
-    readFile (p) {
+    readFile(p) {
         let rst = '';
         p = (typeof(p) === 'object') ? path.join(p.dir, p.base) : p;
         try {
@@ -390,16 +390,16 @@ const utils = {
         }
         return rst;
     },
-    mkdir (name) {
+    mkdir(name) {
         let rst = true;
         try {
             fs.mkdirSync(name);
-        } catch(e) {
+        } catch (e) {
             rst = e;
         }
         return rst;
     },
-    writeFile (p, data) {
+    writeFile(p, data) {
         let opath = (this.isString(p) ? path.parse(p) : p);
         if (!this.isDir(opath.dir)) {
             mkdirp.sync(opath.dir);
@@ -434,10 +434,10 @@ const utils = {
         }
         return path.join(this.currentDir, dist, relative, opath.name + ext);
     },
-    getModifiedTime (p) {
+    getModifiedTime(p) {
         return this.isFile(p) ? +fs.statSync(p).mtime : false;
     },
-    getConfig () {
+    getConfig() {
         let config = cache.getConfig();
         if (config)
             return config;
@@ -451,7 +451,7 @@ const utils = {
             config = this.readFile(configFile);
             try {
                 config = JSON.parse(config);
-            } catch(e) {
+            } catch (e) {
                 config = null;
             }
         } else {
@@ -461,11 +461,11 @@ const utils = {
         cache.setConfig(config);
         return config;
     },
-    getIgnore () {
+    getIgnore() {
         let ignoreFile = path.join(this.currentDir, path.sep, '.wepyignore');
         return this.isFile(ignoreFile) ? this.readFile(ignoreFile) : '';
     },
-    getFiles (dir = process.cwd(), prefix = '') {
+    getFiles(dir = process.cwd(), prefix = '') {
         let cfiles = cache.getFileList(dir);
         if (cfiles)
             return cfiles;
@@ -480,20 +480,20 @@ const utils = {
             let stat = fs.statSync(filepath);
             if (stat.isFile()) {
                 rst.push(prefix + item);
-            } else if(stat.isDirectory()){
-                rst = rst.concat(this.getFiles(path.normalize(dir + path.sep + item),  path.normalize(prefix + item + path.sep)));
+            } else if (stat.isDirectory()) {
+                rst = rst.concat(this.getFiles(path.normalize(dir + path.sep + item), path.normalize(prefix + item + path.sep)));
             }
         });
 
         cache.setFileList(dir, rst);
         return rst;
     },
-    getVersion () {
+    getVersion() {
         let filepath = path.resolve(__dirname, '../package.json');
         let version = JSON.parse(this.readFile(filepath)).version;
         return version;
     },
-    datetime (date = new Date(), format = 'HH:mm:ss') {
+    datetime(date = new Date(), format = 'HH:mm:ss') {
         let fn = (d) => {
             return ('0' + d).slice(-2);
         };
@@ -508,27 +508,27 @@ const utils = {
             mm: fn(date.getMinutes()),
             ss: fn(date.getSeconds())
         };
-        return format.replace(/([a-z])\1+/ig, function (a) {
+        return format.replace(/([a-z])\1+/ig, function(a) {
             return formats[a] || a;
         });
     },
-    error (msg) {
+    error(msg) {
         this.log(msg, 'error', false);
     },
-    warning (msg) {
+    warning(msg) {
         this.log(msg, 'warning', false);
     },
-    log (msg, type, showTime = true) {
+    log(msg, type, showTime = true) {
         let dateTime = showTime ? colors.gray(`[${this.datetime()}] `) : '';
-        if(this.isObject(msg) || this.isArray(msg)){
+        if (this.isObject(msg) || this.isArray(msg)) {
             msg = JSON.stringify(msg);
         }
-        if(type && this.isString(type)) {
+        if (type && this.isString(type)) {
             type = type.toUpperCase();
-            if(type === 'ERROR'){
+            if (type === 'ERROR') {
                 console.error(colors.red('[Error] ' + msg));
                 //console.log();
-            } else if(type === 'WARNING'){
+            } else if (type === 'WARNING') {
                 console.error(colors.yellow('[WARNING] ' + msg));
                 //console.log();
             } else {
@@ -539,7 +539,7 @@ const utils = {
             console.log(dateTime + msg);
         }
     },
-    output (type, file, flag) {
+    output(type, file, flag) {
         if (!flag) {
             flag = file.substr(file.lastIndexOf('.') + 1).toUpperCase();
             if (flag.length < 4) {
@@ -551,7 +551,7 @@ const utils = {
         }
         this.log(flag + ': ' + path.relative(this.currentDir, file), type);
     },
-    genId (filepath) {
+    genId(filepath) {
         if (!ID_CACHE[filepath]) {
             ID_CACHE[filepath] = '_' + hash(filepath).slice(1, 8);
         }
@@ -559,6 +559,3 @@ const utils = {
     }
 }
 export default utils
-
-
-
