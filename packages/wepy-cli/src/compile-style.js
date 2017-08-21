@@ -18,6 +18,8 @@ export default {
         let dist = cache.getDist();
         let ext = cache.getExt();
 
+        let outputExt = config.output === 'ant' ? 'acss' : 'wxss';
+
         if (typeof styles === 'string') {
             // .compile('less', opath) 这种形式
             opath = requires;
@@ -87,7 +89,7 @@ export default {
                     } else {
                         if (comsrc.indexOf('node_modules') > -1) {
                             comsrc = util.getDistPath(path.parse(comsrc));
-                            comsrc = comsrc.replace(ext, '.wxss').replace(`${path.sep}${dist}${path.sep}`, `${path.sep}${src}${path.sep}`);
+                            comsrc = comsrc.replace(ext, '.' + outputExt).replace(`${path.sep}${dist}${path.sep}`, `${path.sep}${src}${path.sep}`);
                             isNPM = true;
                         }
                         var currentFileSrc = opath.dir + path.sep + opath.base;
@@ -96,15 +98,15 @@ export default {
                         let code = util.readFile(comsrc);
                         if (isNPM || /<style/.test(code)) {
                             if (/\.wpy$/.test(relative)) { // wpy 第三方组件
-                                relative = relative.replace(/\.wpy$/, '.wxss');
+                                relative = relative.replace(/\.wpy$/, '.' + outputExt);
                             }
-                            relative = relative.replace(ext, '.wxss').replace(/\\/ig, '/').replace('../', './');
+                            relative = relative.replace(ext, '.' + outputExt).replace(/\\/ig, '/').replace('../', './');
                             allContent = '@import "' + relative + '";\n' + allContent;
                         }
                     }
                 });
             }
-            let target = util.getDistPath(opath, 'wxss', src, dist);
+            let target = util.getDistPath(opath, outputExt, src, dist);
 
             let plg = new loader.PluginHelper(config.plugins, {
                 type: 'css',
