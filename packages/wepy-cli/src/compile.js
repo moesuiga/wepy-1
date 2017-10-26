@@ -10,6 +10,7 @@ import cStyle from './compile-style';
 import cScript from './compile-script';
 
 import loader from './loader';
+import resolve from './resolve';
 
 import toWeb from './web/index';
 
@@ -35,13 +36,18 @@ export default {
         files.forEach((f) => {
             let opath = path.parse(path.join(util.currentDir, src, f));
             let content = util.readFile(opath);
-
             content && content.replace(/import\s*([{\w\d-_}]*)\s*from\s*['"](.*)['"]/ig, (match, name, importpath) => {
                 reg = new RegExp('\\' + ext + '$');
                 if (!reg.test(importpath))
                     importpath = importpath + ext;
-
-                if (path.join(opath.dir, importpath) === path.join(util.currentDir, src, file)) {
+                let resolved = resolve.resolveAlias(importpath);
+                let compath;
+                if (path.isAbsolute(resolved)) {
+                    compath = path.resolve(resolved);
+                } else {
+                    compath = path.join(opath.dir, resolved);
+                }
+                if (compath === path.join(util.currentDir, src, file)) {
                     if (!reg.test(f)) {
                         parents = parents.concat(this.findReference(f));
                     } else {
@@ -56,6 +62,7 @@ export default {
         });
         return util.unique(parents).filter((v) => v.indexOf('components') === -1);
     },
+    _cacheReferences: null,
     /**
      * find src, <script src="">
      */
@@ -65,23 +72,39 @@ export default {
         let ext = cache.getExt();
 
         let refs = [];
+        let filepath = path.join(util.currentDir, src, file);
 
-        let reg = new RegExp('\\' + ext + '$');
+        if (this._cacheReferences === null) {
+            this._cacheReferences = {};
+            let reg = new RegExp('\\' + ext + '$');
 
-        files = files.filter((v) => reg.test(v));
+            files = files.filter((v) => reg.test(v));
 
-        files.forEach((f) => {
-            let opath = path.parse(path.join(util.currentDir, src, f));
-            let content = util.readFile(opath);
+            files.forEach((f) => {
+                let opath = path.parse(path.join(util.currentDir, src, f));
+                let content = util.readFile(opath);
 
-            content.replace(/<(script|template|style)\s.*src\s*=\s*['"](.*)['"]/ig, (match, tag, srcpath) => {
-                if (path.join(opath.dir, srcpath) === path.join(util.currentDir, src, file)) {
-                    refs.push(f);
-                }
+                let wpy = cWpy.resolveWpy(opath);
+                let links = {};
+
+                ['script', 'template', 'style'].forEach(t => {
+                    if (wpy[t]) {
+                        if (wpy[t].link === true) {
+                            this._cacheReferences[wpy[t].src] = this._cacheReferences[wpy[t].src] || [];
+                            this._cacheReferences[wpy[t].src].push(f);
+                        } else if (wpy[t].link === undefined && wpy[t].length) { // styles
+                            wpy[t].forEach(s => {
+                                if (s.link) {
+                                    this._cacheReferences[s.src] = this._cacheReferences[s.src] || [];
+                                    this._cacheReferences[s.src].push(f);
+                                }
+                            });
+                        }
+                    }
+                });
             });
-        });
-
-        return refs;
+        }
+        return this._cacheReferences[filepath] || [];
     },
     watch (config) {
         config.watch = false;
@@ -89,7 +112,6 @@ export default {
         let wepyrc = util.getConfig();
         let src = config.source || wepyrc.src || 'src';
         let dist = config.output || wepyrc.output || 'dist';
-
         chokidar.watch(`.${path.sep}${src}`, {
             depth: 99
         }).on('all', (evt, filepath) => {
@@ -120,29 +142,24 @@ export default {
         }
         return true;
     },
-    checkDependence (dep) {
-        return util.isDir(util.currentDir, 'node_modules', dep);
-    },
     checkPlugin (plugins = {}) {
         return loader.loadPlugin(plugins);
     },
 
     wepyUpdate(required = '1.5.7') {
-        let pkgfile = path.join(util.currentDir, 'node_modules', 'wepy', 'package.json');
-        let pkg;
-        try {
-            pkg = JSON.parse(util.readFile(pkgfile));
-        } catch (e) {}
-        pkg = pkg || {version: '0.0.0'};
+        let o = resolve.getPkg('wepy') || {};
+        let pkg = o.pkg || {version: '0.0.0'};
         return compareVersions(required, pkg.version) === 1;
     },
 
-    build (config) {
+    init (config) {
         let wepyrc = util.getConfig();
         if (!wepyrc) {
             util.error('没有检测到wepy.config.js文件, 请执行`wepy new demo`创建');
-            return;
+            return false;
         }
+        resolve.init(wepyrc.resolve || {});
+        loader.attach(resolve);
 
         if (this.wepyUpdate()) { // 需要更新wepy版本
             util.log('检测到wepy版本不符合要求，正在尝试更新，请稍等。', '信息');
@@ -153,7 +170,7 @@ export default {
                 util.log(`安装wepy失败，请尝试运行命令 "npm install wepy --save" 进行安装。`, '错误');
                 console.log(e);
             });
-            return;
+            return false;
         }
 
         if (!this.checkCompiler(wepyrc.compilers) || !this.checkPlugin(wepyrc.plugins)) {
@@ -163,27 +180,25 @@ export default {
                     util.log(`已完成安装 ${loader.missingNPM}，重新启动编译。`, '完成');
                     this.build(config);
                 }).catch(e => {
-                    util.log(`安装插件失败：${loader.missingNPM}，请尝试运行命令 "npm install ${name} --save-dev" 进行安装。`, '错误');
+                    util.log(`安装插件失败：${loader.missingNPM}，请尝试运行命令 "npm install ${loader.missingNPM} --save-dev" 进行安装。`, '错误');
                     console.log(e);
                 });
             }).catch(e => {
                 util.log(`不存在插件：${loader.missingNPM}，请检测是否拼写错误。`, '错误');
                 console.log(e);
             });
-            return;
+            return false;
         }
 
-        let src = config.source || wepyrc.src;
-        let dist = config.output || wepyrc.output;
-        let ext = config.wpyExt || wepyrc.wpyExt;
+
 
         if (config.output === 'web') {
             wepyrc.web = wepyrc.web || {};
-            dist = wepyrc.web.dist || dist || 'web';
-            src = wepyrc.web.src || src || 'src';
+            wepyrc.web.dist = wepyrc.web.dist || 'web';
+            wepyrc.web.src = wepyrc.web.src || 'src';
             wepyrc.output = 'web';
 
-            if (!util.isDir(path.join(util.currentDir, 'node_modules', 'wepy-web'))) {
+            if (!resolve.getPkg('wepy-web')) {
                 util.log('正在尝试安装缺失资源 wepy-web，请稍等。', '信息');
                 util.exec(`npm install wepy-web --save`).then(d => {
                     util.log(`已完成安装 wepy-web，重新启动编译。`, '完成');
@@ -192,15 +207,15 @@ export default {
                     util.log(`安装插件失败：wepy-web，请尝试运行命令 "npm install wepy-web --save" 进行安装。`, '错误');
                     console.log(e);
                 });
-                return;
+                return false;
             }
         } else if (config.output === 'ant') {
             wepyrc.ant = wepyrc.ant || {};
-            dist = wepyrc.ant.dist || dist || 'ant';
-            src = wepyrc.ant.src || src || 'src';
+            wepyrc.ant.dist = wepyrc.ant.dist || 'ant';
+            wepyrc.ant.src = wepyrc.ant.src || 'src';
             wepyrc.output = 'ant';
 
-            if (!util.isDir(path.join(util.currentDir, 'node_modules', 'wepy-ant'))) {
+            if (!resolve.getPkg('wepy-ant')) {
                 util.log('正在尝试安装缺失资源 wepy-ant，请稍等。', '信息');
                 util.exec(`npm install wepy-ant --save`).then(d => {
                     util.log(`已完成安装 wepy-ant，重新启动编译。`, '完成');
@@ -209,9 +224,19 @@ export default {
                     util.log(`安装插件失败：wepy-ant，请尝试运行命令 "npm install wepy-ant --save" 进行安装。`, '错误');
                     console.log(e);
                 });
-                return;
+                return false;
             }
         }
+        return true;
+    },
+
+    build (config) {
+
+        let wepyrc = util.getConfig();
+
+        let src = config.source || wepyrc.src;
+        let dist = config.output || wepyrc.output;
+        let ext = config.wpyExt || wepyrc.wpyExt;
 
         if (src === undefined)
             src = 'src';
@@ -298,6 +323,7 @@ export default {
         }
 
         if (config.watch) {
+            util.isWatch = true;
             this.watch(config);
         }
     },

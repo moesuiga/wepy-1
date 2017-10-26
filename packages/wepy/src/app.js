@@ -58,7 +58,7 @@ export default class {
 
 
     $init (wepy, config = {}) {
-        this.$initAPI(wepy, config.promisifyAPI);
+        this.$initAPI(wepy, config.noPromiseAPI);
         this.$wxapp = getApp();
     }
 
@@ -82,7 +82,7 @@ export default class {
     requestfix () {
     }
 
-    $initAPI (wepy, promisifyAPI) {
+    $initAPI (wepy, noPromiseAPI) {
         var self = this;
         let noPromiseMethods = {
             stopRecord: true,
@@ -95,12 +95,25 @@ export default class {
             createAnimation: true,
             createContext: true,
             createCanvasContext: true,
+            createSelectorQuery: true,
+            createAudioContext: true,
+            createInnerAudioContext: true,
+            createVideoContext: true,
+            createCameraContext: true,
+            createMapContext: true,
+            pageScrollTo: true,
+            onBLEConnectionStateChange: true,
+            onBLECharacteristicValueChange: true,
             hideKeyboard: true,
             stopPullDownRefresh: true
         };
-        if (promisifyAPI) {
-            for (let k in promisifyAPI) {
-                noPromiseMethods[k] = promisifyAPI[k];
+        if (noPromiseAPI) {
+            if (Array.isArray(noPromiseAPI)) {
+                noPromiseAPI.forEach(v => noPromiseMethods[v] = true);
+            } else {
+                for (let k in noPromiseAPI) {
+                    noPromiseMethods[k] = noPromiseAPI[k];
+                }
             }
         }
         Object.keys(wx).forEach((key) => {

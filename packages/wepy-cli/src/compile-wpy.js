@@ -16,16 +16,18 @@ import toWeb from './web/index';
 import loader from './loader';
 
 export default {
-    createParser () {
+    _cacheWpys: {},
+    createParser (opath) {
         return new DOMParser({errorHandler: {
             warning (x) {
                 if (x.indexOf('missed value!!') > -1) {
                     // ignore warnings
-                } else
-                    util.warning(x);
+                } else {
+                    util.warning('WARNING IN : ' + path.relative(util.currentDir, path.join(opath.dir, opath.base)) + '\n' + x);
+                }
             },
             error (x) {
-                util.error(x);
+                util.error('ERROR IN : ' + path.relative(util.currentDir, path.join(opath.dir, opath.base)) + '\n' + x);
             }
         }});
     },
@@ -111,7 +113,7 @@ export default {
 
         content = util.attrReplace(content);
 
-        xml = this.createParser().parseFromString(content);
+        xml = this.createParser(opath).parseFromString(content);
 
         const moduleId = util.genId(filepath);
 
@@ -151,6 +153,9 @@ export default {
 
                 if (rstTypeObj.src) {
                     rstTypeObj.src = path.resolve(opath.dir, rstTypeObj.src);
+                    rstTypeObj.link = true;
+                } else {
+                    rstTypeObj.link = false;
                 }
 
                 if (rstTypeObj.src && util.isFile(rstTypeObj.src)) {
@@ -220,13 +225,13 @@ export default {
                 }
             }
             if (rst.template.code)
-                rst.template.node = this.createParser().parseFromString(util.attrReplace(rst.template.code));
+                rst.template.node = this.createParser(opath).parseFromString(util.attrReplace(rst.template.code));
         })();
 
         // get imports
         (() => {
             let coms = {};
-            rst.script.code.replace(/import\s*([@\w\-\_]*)\s*from\s*['"]([@\w\-\_\.\/]*)['"]/ig, (match, com, path) => {
+            rst.script.code.replace(/import\s*([\w\-\_]*)\s*from\s*['"]([\w\-\_\.\/\@]*)['"]/ig, (match, com, path) => {
                 coms[com] = path;
             });
 
@@ -255,6 +260,9 @@ export default {
             let elems = [];
             let props = {};
             let events = {};
+            let $repeat = {};
+
+            let repeatItem = '';
 
             let calculatedComs = [];
 
@@ -275,22 +283,43 @@ export default {
                     elems.forEach((elem) => {
                         calculatedComs.push(elem);
                         let comid = util.getComId(elem);
+                        let forexp = tmp.for;
+                        if (forexp.indexOf('.') > -1) {  // for="{{mydata.list}}"
+                            forexp = forexp.split('.')[0];
+                        }
+                        $repeat[forexp] = { com: comid };
                         [].slice.call(elem.attributes || []).forEach((attr) => {
-                            if (attr.name !== 'id' && attr.name !== 'path') {
-                                if (/v-on:/.test(attr.name)) { // v-on:fn user custom event
-                                    if (!events[comid])
-                                        events[comid] = {};
-                                    events[comid][attr.name] = attr.value;
-                                } else {
-                                    if (!props[comid])
-                                        props[comid] = {};
-                                    if (['hidden', 'wx:if', 'wx:elif', 'wx:else'].indexOf(attr.name) === -1) {
-                                        props[comid][attr.name] = tmp;
-                                        props[comid][attr.name]['value'] = attr.value;
+                            if (attr.name !== 'xmlns:v-bind=""') {
+                                if (attr.name !== 'id' && attr.name !== 'path') {
+                                    if (/v-on:/.test(attr.name)) { // v-on:fn user custom event
+                                        if (!events[comid])
+                                            events[comid] = {};
+                                        events[comid][attr.name] = attr.value;
+                                    } else {
+                                        if (!props[comid])
+                                            props[comid] = {};
+                                        if (['hidden', 'wx:if', 'wx:elif', 'wx:else'].indexOf(attr.name) === -1) {
+                                            let assign = { value: attr.value };
+                                            switch (assign.value) {
+                                                case tmp.item:
+                                                    assign.type = 'item';
+                                                    repeatItem = attr.name.replace('v-bind:', '').replace('.once', '');
+                                                    break;
+                                                case tmp.index:
+                                                    assign.type = 'index';
+                                                    break;
+                                                case tmp.key:
+                                                    assign.type = 'key';
+                                                    break;
+                                            }
+                                            props[comid][attr.name] = Object.assign(assign, tmp);
+                                        }
                                     }
                                 }
                             }
                         });
+
+                        $repeat[forexp].props = repeatItem;
                     });
                 }
             });
@@ -323,7 +352,7 @@ export default {
             });
             if (Object.keys(props).length) {
                 rst.script.code =rst.script.code.replace(/[\s\r\n]components\s*=[\s\r\n]*/, (match, item, index) => {
-                    return `$props = ${JSON.stringify(props)};\r\n$events = ${JSON.stringify(events)};\r\n${match}`;
+                    return `$repeat = ${JSON.stringify($repeat)};\r\n$props = ${JSON.stringify(props)};\r\n$events = ${JSON.stringify(events)};\r\n${match}`;
                 });
             }
         })();
@@ -335,8 +364,9 @@ export default {
             // 更新 template.code
             rst.template.code = node.toString();
         }
-
-        return rst;
+        this._cacheWpys[filepath] = rst;
+        return this._cacheWpys[filepath];
+        // return rst;
     },
 
     remove (opath, ext) {
@@ -379,7 +409,7 @@ export default {
 
         // Ignore all node modules, avoid eslint warning.
         // https://github.com/eslint/eslint/blob/75b7ba4113db4d9bc1661a4600c8728cf3bfbf2b/lib/cli-engine.js#L325
-        if (!/^node_modules/.test(relative)) {
+        if (!opath.npm) {
             this.lint(filepath);
         }
 
@@ -421,13 +451,18 @@ export default {
                     }
                 }
             }
-            cStyle.compile(wpy.style, requires, opath, wpy.moduleId);
+            try {
+                cStyle.compile(wpy.style, requires, opath, wpy.moduleId);
+            } catch (e) {
+                util.error(e);
+            }
         } else {
             this.remove(opath, 'wxss');
         }
 
         if (wpy.template && wpy.template.code && type !== 'component') { // App 和 Component 不编译 wxml
             //cTemplate.compile(wpy.template.type, wpy.template.code, opath);
+            wpy.template.npm = opath.npm;
             cTemplate.compile(wpy.template);
         }
 

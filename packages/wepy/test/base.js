@@ -37,9 +37,9 @@ describe('base.js', () => {
         comEvt.$transfor({
             currentTarget: {
                 dataset: {
-                    wepyParamsA: 'a',
-                    wepyParamsB: 'b',
-                    wepyParamsC: 'c'
+                    wpytapA: 'a',
+                    wpytapB: 'b',
+                    wpytapC: 'c'
                 }
             }
         });
@@ -52,8 +52,8 @@ describe('base.js', () => {
         repeatEvt.$transfor({
             currentTarget: {
                 dataset: {
-                    wepyParamsA: '1',
-                    wepyParamsB: '2',
+                    wpytapA: '1',
+                    wpytapB: '2',
                     comIndex: '1'
                 }
             }
@@ -68,7 +68,7 @@ describe('base.js', () => {
         repeatInRepeatEvt.$transfor({
             currentTarget: {
                 dataset: {
-                    wepyParamsA: '100',
+                    wpytapA: '100',
                     comIndex: '1-1'
                 }
             }
@@ -97,12 +97,12 @@ describe('base.js', () => {
 
         assert.strictEqual(index.$wxapp.app, global.getApp().app, '$wxapp reuturns getApp()');
 
-        assert.strictEqual(index.$wxpage.getCurrentPages(), 'wxpage', '$wxpage returns wxpage');
+        assert.strictEqual(index.getCurrentPages()[0]['__wxWebviewId__'], 0, 'getCurrentPages');
 
 
         assert.strictEqual(index.$com.coma.$wxapp.app, global.getApp().app, '$wxapp reuturns getApp()');
 
-        assert.strictEqual(index.$com.coma.$wxpage.getCurrentPages(), 'wxpage', '$wxpage returns wxpage');
+        assert.strictEqual(index.$com.coma.getCurrentPages()[0]['__wxWebviewId__'], 0, 'getCurrentPages');
 
     });
 });

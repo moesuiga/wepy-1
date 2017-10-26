@@ -94,8 +94,7 @@ export default {
     },
 
     parseExp (content, prefix, ignores, mapping) {
-        let comid = this.getPrefix(prefix);
-        if (!comid)
+        if (!prefix)
             return content;
         // replace {{ param ? 'abc' : 'efg' }} => {{ $prefix_param ? 'abc' : 'efg' }}
         return content.replace(/\{\{([^}]+)\}\}/ig, (matchs, words) => {
@@ -110,13 +109,13 @@ export default {
                 } else {
                     if (mapping.items && mapping.items[w]) {
                         // prefix 减少一层
-                        let upper = comid.split(PREFIX);
+                        let upper = prefix.split(PREFIX);
                         upper.pop();
                         upper = upper.join(PREFIX);
                         upper = upper ? `${PREFIX}${upper}${JOIN}` : '';
                         return `${char}${expand}${upper}${mapping.items[w].mapping}${rest}`;
                     }
-                    return `${char}${expand}${PREFIX}${comid}${JOIN}${word}`;
+                    return `${char}${expand}${PREFIX}${prefix}${JOIN}${word}`;
                 }
             });
         });
@@ -206,13 +205,28 @@ export default {
         return this.getMappingIndex(mapping.parent, arr);
     },
 
+    /**
+     * 组件图片引用会被直接编译进页面，因此需要对组件中的相对路径进行路径修正
+     */
+    fixRelativePath (node, template, parentTemplate) {
+        if (node.nodeName === 'image' && parentTemplate) {
+            let src = node.getAttribute('src')
+            if (src[0] === '.') {
+                let realpath = path.join(path.parse(template.src).dir, node.getAttribute('src'));
+                let fixedpath = path.relative(path.parse(parentTemplate.src).dir, realpath);
+                fixedpath = fixedpath.replace(/\\/g, '/');
+                node.setAttribute('src', fixedpath);
+            }
+        }
+        return node;
+    },
 
-    updateBind (node, prefix, ignores = {}, mapping = {}) {
+    updateBind (node, template, parentTemplate, prefix, ignores = {}, mapping = {}) {
 
         let config = cache.getConfig();
         let tagprefix = config.output === 'ant' ? 'a' : 'wx';
 
-        let comid = prefix ? this.getPrefix(prefix) : '';
+        node = this.fixRelativePath(node, template, parentTemplate);
 
         if (node.nodeName === '#text' && prefix) {
             if (node.data && node.data.indexOf('{{') > -1) {
@@ -258,7 +272,7 @@ export default {
                     // added index for all events;
                     if (mapping.items && mapping.items.length > 0) {
                         // prefix 减少一层
-                        let upper = comid.split(PREFIX);
+                        let upper = prefix.split(PREFIX);
                         upper.pop();
                         upper = upper.join(PREFIX);
                         upper = upper ? `${PREFIX}${upper}${JOIN}` : '';
@@ -269,11 +283,11 @@ export default {
                         let funcInfo = this.getFunctionInfo(attr.value);
                         attr.value = funcInfo.name;
                         funcInfo.params.forEach((p, i) => {
-                            node.setAttribute('data-wepy-params-' + String.fromCharCode(97 + i), p);
+                            node.setAttribute('data-wpy' + funcInfo.name.toLowerCase() + '-' + String.fromCharCode(97 + i), p);
                         });
                     }
                     if (prefix)
-                        attr.value = `${PREFIX}${comid}${JOIN}` + attr.value;
+                        attr.value = `${PREFIX}${prefix}${JOIN}` + attr.value;
                 }
                 if (attr.name === 'a:for-items' && config.output === 'ant') {
                     node.setAttribute('a:for', attr.value);
@@ -281,7 +295,7 @@ export default {
                 }
             });
             [].slice.call(node.childNodes || []).forEach((child) => {
-                this.updateBind(child, prefix, ignores, mapping);
+                this.updateBind(child, template, parentTemplate, prefix, ignores, mapping);
             });
         }
         return node;
@@ -327,14 +341,13 @@ export default {
         return node;
     },
 
-    compileXML (node, template, prefix, childNodes, comAppendAttribute = {}, propsMapping = {}) {
+    compileXML (node, template, parentTemplate, prefix, childNodes, comAppendAttribute = {}, propsMapping = {}) {
 
         let config = cache.getConfig();
         let tagprefix = config.output === 'ant' ? 'a' : 'wx';
-
         this.updateSlot(node, childNodes);
 
-        this.updateBind(node, prefix, {}, propsMapping);
+        this.updateBind(node, template, parentTemplate, prefix, {}, propsMapping);
 
         if (node && node.documentElement) {
             Object.keys(comAppendAttribute).forEach((key) => {
@@ -418,10 +431,10 @@ export default {
                 let comid = util.getComId(com);
                 let src = util.findComponentInTemplate(com, template);
                 if (!src) {
-                    util.error('找不到组件：' + com.tagName, '错误');
+                    util.error('找不到组件：' + com.tagName, '\n请尝试使用 npm install ' + com.tagName + ' 安装', '错误');
                 } else {
-                    let wpy = cWpy.resolveWpy(src);
-                    let newnode = this.compileXML(this.getTemplate(wpy.template.code), wpy.template, prefix ? `${prefix}$${comid}` : `${comid}`, com.childNodes, comAttributes, template.props[comid]);
+                    let comWpy = cWpy.resolveWpy(src);
+                    let newnode = this.compileXML(this.getTemplate(comWpy.template.code), comWpy.template, template, this.getPrefix(prefix ? `${prefix}$${comid}` : `${comid}`), com.childNodes, comAttributes, template.props[comid]);
                     node.replaceChild(newnode, com);
                 }
             });
@@ -457,10 +470,10 @@ export default {
 
             let src = util.findComponent(definePath, isCustom);
             if (!src) {
-                util.error('找不到组件：' + definePath, '错误');
+                util.error('找不到组件：' + definePath, '\n请尝试使用 npm install ' + definePath + ' 安装', '错误');
             } else {
-                let wpy = cWpy.resolveWpy(src);
-                let newnode = this.compileXML(this.getTemplate(wpy.template.code), wpy.template, prefix ? `${prefix}$${comid}` : `${comid}`, com.childNodes, comAttributes);
+                let comWpy = cWpy.resolveWpy(src);
+                let newnode = this.compileXML(this.getTemplate(comWpy.template.code), comWpy.template, template, this.getPrefix(prefix ? `${prefix}$${comid}` : `${comid}`), com.childNodes, comAttributes);
                 
                 node.replaceChild(newnode, com);
             }
@@ -494,7 +507,9 @@ export default {
         compiler(content, config.compilers[lang] || {}).then(content => {
             let node = cWpy.createParser().parseFromString(content);
             node = this.compileXML(node, template);
-            let target = util.getDistPath(path.parse(template.src), config.output === 'ant' ? 'axml' : 'wxml', src, dist);
+            let opath = path.parse(template.src);
+            opath.npm = template.npm;
+            let target = util.getDistPath(opath, config.output === 'ant' ? 'axml' : 'wxml', src, dist);
 
             if (node.childNodes.length === 0) {
                 // empty node tostring will cause an error.

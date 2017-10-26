@@ -5,6 +5,7 @@ import path from 'path';
 import { exec } from 'child_process';
 import hash from 'hash-sum';
 import cache from './cache';
+import resolve from './resolve';
 
 colors.enabled = true;
 
@@ -119,23 +120,17 @@ const utils = {
         let wpyExt = cache.getExt();
 
         let src = '';
-        const isPrivatePackage = com.indexOf('@') === 0
-        if (com.indexOf(path.sep) !== -1 && !isPrivatePackage) {
+        if (com.indexOf(path.sep) !== -1 && com.indexOf('@') === -1) {
             if (this.isFile(com + wpyExt)) {
                 src = com + wpyExt;
             }
         } else {
-            let comPath = path.join(this.currentDir, 'node_modules', com);
-            if (this.isDir(comPath)) {
-                let pkg = this.readFile(path.join(comPath, 'package.json'));
-                try {
-                    pkg = JSON.parse(pkg);
-                } catch (e) {
-                    pkg = null;
-                }
-                src = path.join(comPath, pkg.main);
+            let o = resolve.getMainFile(com);
+            
+            if (o) {
+                src = path.join(o.dir, o.file);
             } else {
-                let comPath = path.join(this.currentDir, cache.getSrc(), 'components', com);
+                let comPath = resolve.resolveAlias(com);
                 if (this.isFile(comPath + wpyExt)) {
                     src = comPath + wpyExt;
                 } else if (this.isFile(comPath + '/index' + wpyExt)) {
@@ -433,10 +428,8 @@ const utils = {
             opath = path.parse(opath);
         ext = (ext ? (ext[0] === '.' ? ext : ('.' + ext)) : opath.ext);
         // 第三组件
-        // 相对目录以node_modules开始
-        if (path.relative(this.currentDir, opath.dir).indexOf('node_modules') === 0) {
-            // if (opath.dir.indexOf(`${path.sep}${src}${path.sep}`) === -1 && opath.dir.indexOf('node_modules') > 1) {
-            relative = path.relative(path.join(this.currentDir, 'node_modules'), opath.dir);
+        if (opath.npm) {
+            relative = path.relative(opath.npm.modulePath, opath.npm.dir);
             relative = path.join('npm', relative);
         } else {
             relative = path.relative(path.join(this.currentDir, src), opath.dir);
@@ -523,6 +516,9 @@ const utils = {
     },
     error(msg) {
         this.log(msg, 'error', false);
+        if (!this.isWatch) {
+            process.exit(0);
+        }
     },
     warning(msg) {
         this.log(msg, 'warning', false);
@@ -535,11 +531,13 @@ const utils = {
         if (type && this.isString(type)) {
             type = type.toUpperCase();
             if (type === 'ERROR') {
-                console.error(colors.red('[Error] ' + msg));
-                //console.log();
+                if (msg instanceof Error) {
+                    console.error(colors.red('[Error] ' + msg.stack));
+                } else {
+                    console.error(colors.red('[Error] ' + msg));
+                }
             } else if (type === 'WARNING') {
                 console.error(colors.yellow('[WARNING] ' + msg));
-                //console.log();
             } else {
                 let fn = colors[type] ? colors[type] : colors['info'];
                 console.log(dateTime + fn(`[${type}]`) + ' ' + msg);

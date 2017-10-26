@@ -4,6 +4,7 @@ import util from './util';
 import cache from './cache';
 
 import loader from './loader';
+import resolve from './resolve';
 import scopedHandler from './style-compiler/scoped';
 
 const LANG_MAP = {
@@ -17,6 +18,7 @@ export default {
         let src = cache.getSrc();
         let dist = cache.getDist();
         let ext = cache.getExt();
+        let isNPM = false;
 
         let outputExt = config.output === 'ant' ? 'acss' : 'wxss';
 
@@ -59,7 +61,7 @@ export default {
             let compiler = loader.loadCompiler(lang);
 
             if (!compiler) {
-                throw `未发现相关 ${lang} 编译器配置，请检查wepy.config.js文件。`;
+                throw `未发现相关 ${lang} 编译器配置，请检查wepy.config.js文件。`
             }
 
             const p = compiler(content, options || {}, filepath).then((css) => {
@@ -77,26 +79,55 @@ export default {
             allPromises.push(p);
         });
         const pathSep = path.sep
+        // 父组件没有写style标签，但是有子组件的。
+        if (requires.length > 0 && styles.length === 0) {
+            allPromises = [Promise.resolve('')];
+        }
         Promise.all(allPromises).then((rets) => {
             let allContent = rets.join('');
             if (requires && requires.length) {
                 requires.forEach((r) => {
-                    let comsrc = util.findComponent(r);
-                    let isNPM = false;
-
-                    if (!comsrc) {
-                        util.log('找不到组件：' + r, '错误');
+                    let comsrc = null;
+                    isNPM = false;
+                    if (path.isAbsolute(r)) {
+                        if (path.extname(r) === '' && util.isFile(r + ext)) {
+                            comsrc = r + ext;
+                        }
                     } else {
-                        if (comsrc.indexOf('node_modules') > -1) {
-                            comsrc = util.getDistPath(path.parse(comsrc));
-                            comsrc = comsrc.replace(ext, '.' + outputExt).replace(`${path.sep}${dist}${path.sep}`, `${path.sep}${src}${path.sep}`);
+                        let lib = resolve.resolveAlias(r);
+                        if (path.isAbsolute(lib)) {
+                            comsrc = lib;
+                        } else {
+                            let o = resolve.getMainFile(r);
+                            comsrc = path.join(o.dir, o.file);
+                            let newOpath = path.parse(comsrc);
+                            newOpath.npm = {
+                                lib: r,
+                                dir: o.dir,
+                                file: o.file,
+                                modulePath: o.modulePath
+                            };
+                            comsrc = util.getDistPath(newOpath);
                             isNPM = true;
+                        }
+                    }
+                    if (!comsrc) {
+                        util.error('找不到组件：' + r + `\n请尝试使用 npm install ${r} 安装`, '错误');
+                    } else {
+                        if (path.extname(comsrc) === '') {
+                            comsrc += ext;
                         }
                         var currentFileSrc = opath.dir + path.sep + opath.base;
                         currentFileSrc = currentFileSrc.replace('node_modules', `src${pathSep}npm`).replace(`${pathSep}dist${pathSep}`, `${pathSep}src${pathSep}`);
                         let relative = path.relative(currentFileSrc, comsrc);
+                        
                         let code = util.readFile(comsrc);
                         if (isNPM || /<style/.test(code)) {
+                            if (isNPM) {
+                                let srcRelative = path.relative(opath.dir + path.sep + opath.base, path.join(util.currentDir, src));
+                                let distFile = path.relative(path.join(util.currentDir, dist), comsrc);
+                                relative = path.join(srcRelative, distFile);
+                            }
                             if (/\.wpy$/.test(relative)) { // wpy 第三方组件
                                 relative = relative.replace(/\.wpy$/, '.' + outputExt);
                             }
@@ -121,7 +152,7 @@ export default {
                 }
             });
         }).catch((e) => {
-            console.log(e);
+            util.error(e);
         });
     }
 }

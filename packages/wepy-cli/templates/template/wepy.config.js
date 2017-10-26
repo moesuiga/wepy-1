@@ -10,6 +10,13 @@ module.exports = {
       jsOutput: path.join('web', 'index.js')
     }
   },
+  resolve: {
+    alias: {
+      counter: path.join(__dirname, 'src/components/counter'),
+      '@': path.join(__dirname, 'src')
+    },
+    modules: ['node_modules']
+  },
   eslint: true,
   compilers: {
     less: {
@@ -21,10 +28,10 @@ module.exports = {
     babel: {
       sourceMap: true,
       presets: [
-        'es2015',
-        'stage-1'
+        'env'
       ],
       plugins: [
+        'babel-plugin-transform-class-properties',
         'transform-decorators-legacy',
         'transform-export-extensions',
         'syntax-export-extensions'
@@ -32,6 +39,9 @@ module.exports = {
     }
   },
   plugins: {
+  },
+  appConfig: {
+    noPromiseAPI: ['createSelectorQuery']
   }
 }
 
