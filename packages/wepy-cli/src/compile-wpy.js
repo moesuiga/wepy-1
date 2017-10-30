@@ -409,7 +409,7 @@ export default {
 
         // Ignore all node modules, avoid eslint warning.
         // https://github.com/eslint/eslint/blob/75b7ba4113db4d9bc1661a4600c8728cf3bfbf2b/lib/cli-engine.js#L325
-        if (!opath.npm) {
+        if (!opath.npm || !opath.tuhu) {
             this.lint(filepath);
         }
 

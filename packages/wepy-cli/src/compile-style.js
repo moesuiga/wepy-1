@@ -128,7 +128,6 @@ export default {
                 if (relative.indexOf('@')) {
                   relative = relative.replace(`${pathSep}src${pathSep}`, pathSep)
                 }
-                console.log('isNpm', relative)
               }
               if (/\.wpy$/.test(relative)) { // wpy 第三方组件
                 relative = relative.replace(/\.wpy$/, '.' + outputExt);
