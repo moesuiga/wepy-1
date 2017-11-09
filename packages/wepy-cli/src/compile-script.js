@@ -69,8 +69,8 @@ export default {
           needCopy = false;
         }
       } else if (lib.indexOf('/') === -1 || // require('asset');
-                lib.indexOf('/') === lib.length - 1 || // reqiore('a/b/something/')
-                (lib[0] === '@' && lib.indexOf('/') !== -1 && lib.lastIndexOf('/') === lib.indexOf('/')) // require('@abc/something')
+        lib.indexOf('/') === lib.length - 1 || // reqiore('a/b/something/')
+        (lib[0] === '@' && lib.indexOf('/') !== -1 && lib.lastIndexOf('/') === lib.indexOf('/')) // require('@abc/something')
       ) {
         let mainFile = resolve.getMainFile(lib);
 
@@ -136,7 +136,11 @@ export default {
           let newOpath = path.parse(source);
           newOpath.npm = npmInfo;
           const nextIsTuhu = isTuhu && !nextRequireIsNpm
-          this.compile('js', null, nextIsTuhu ? 'tuhu' : 'npm', newOpath);
+          let compileType = 'js'
+          if (newOpath.base.indexOf('.js') > 0) {
+            compileType = 'babel'
+          }
+          this.compile(compileType, null, nextIsTuhu ? 'tuhu' : 'npm', newOpath);
         }
       }
       if (type === 'npm' || type === 'tuhu') {
@@ -205,7 +209,7 @@ export default {
 
     compiler(code, config.compilers[lang] || {}).then((compileResult) => {
       let sourceMap;
-      if (typeof (compileResult) === 'string') {
+      if (typeof(compileResult) === 'string') {
         code = compileResult;
       } else {
         sourceMap = compileResult.map;
@@ -213,7 +217,7 @@ export default {
       }
       if (type !== 'npm' || type !== 'tuhu') {
         if (type === 'page' || type === 'app') {
-          code = code.replace(/exports\.default\s*=\s*(\w+);/ig, function (m, defaultExport) {
+          code = code.replace(/exports\.default\s*=\s*(\w+);/ig, function(m, defaultExport) {
             if (defaultExport === 'undefined') {
               return '';
             }
