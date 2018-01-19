@@ -99,6 +99,15 @@ export default {
         } else {
           let o = resolve.walk(lib);
           source = path.join(o.modulePath, lib);
+          const modulesDir = path.dirname(source);
+          const lastIndex = modulesDir.indexOf('node_modules') + 'node_modules'.length;
+          const rootDir = modulesDir.substr(0, lastIndex);
+          npmInfo = {
+            lib: lib,
+            dir: modulesDir,
+            modulePath: rootDir,
+            file: `${lib}.js`,
+          }
         }
 
         target = path.join(npmPath, lib);
