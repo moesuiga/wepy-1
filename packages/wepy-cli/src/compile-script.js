@@ -146,7 +146,8 @@ export default {
           newOpath.npm = npmInfo;
           const nextIsTuhu = isTuhu && !nextRequireIsNpm
           let compileType = 'js'
-          if (newOpath.base.indexOf('.js') > 0) {
+
+          if (newOpath.base.indexOf('.js') > 0 && type !== 'npm') { // npm类型的不编译
             compileType = 'babel'
           }
           this.compile(compileType, null, nextIsTuhu ? 'tuhu' : 'npm', newOpath);
@@ -218,7 +219,7 @@ export default {
 
     compiler(code, config.compilers[lang] || {}).then((compileResult) => {
       let sourceMap;
-      if (typeof(compileResult) === 'string') {
+      if (typeof (compileResult) === 'string') {
         code = compileResult;
       } else {
         sourceMap = compileResult.map;
@@ -226,7 +227,7 @@ export default {
       }
       if (type !== 'npm' || type !== 'tuhu') {
         if (type === 'page' || type === 'app') {
-          code = code.replace(/exports\.default\s*=\s*(\w+);/ig, function(m, defaultExport) {
+          code = code.replace(/exports\.default\s*=\s*(\w+);/ig, function (m, defaultExport) {
             if (defaultExport === 'undefined') {
               return '';
             }
