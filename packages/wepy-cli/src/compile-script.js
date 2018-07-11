@@ -147,7 +147,10 @@ export default {
           const nextIsTuhu = isTuhu && !nextRequireIsNpm
           let compileType = 'js'
 
-          if (newOpath.base.indexOf('.js') > 0 && type !== 'npm') { // npm类型的不编译
+          // 配置的需要编译的 npm 包
+          const babelNpm = config.includeNpm && config.includeNpm.indexOf(newOpath.name) > -1;
+
+          if (newOpath.base.indexOf('.js') > 0 && (type !== 'npm' || babelNpm)) { // npm类型的不编译
             compileType = 'babel'
           }
           this.compile(compileType, null, nextIsTuhu ? 'tuhu' : 'npm', newOpath);
